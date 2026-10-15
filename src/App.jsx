@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Boxes,
+  Calculator,
   Check,
   ChevronDown,
   CircleHelp,
@@ -15,6 +16,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react'
+import { calculateExcisePenalty } from './calculator.js'
 
 const emptyDeclaration = {
   declarationNumber: '',
@@ -50,7 +52,13 @@ async function readResponse(response) {
 }
 
 function App() {
+  const [activePage, setActivePage] = useState('declarations')
   const [declarations, setDeclarations] = useState([])
+  const [calculatorInput, setCalculatorInput] = useState({
+    quantityKg: '',
+    customsValue: '',
+    exciseRatePerTonne: '',
+  })
   const [query, setQuery] = useState('')
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -158,6 +166,19 @@ function App() {
   }
 
   const totalGross = declarations.reduce((sum, row) => sum + Number(row.gross_kg || 0), 0)
+  const hasCalculatorError = Object.values(calculatorInput).some(
+    (value) => value !== '' && (!Number.isFinite(Number(value)) || Number(value) < 0),
+  )
+  const hasCalculatorValues = Object.values(calculatorInput).every((value) => value !== '')
+  const calculation = hasCalculatorValues && !hasCalculatorError
+    ? calculateExcisePenalty({
+        quantityKg: Number(calculatorInput.quantityKg),
+        customsValue: Number(calculatorInput.customsValue),
+        exciseRatePerTonne: Number(calculatorInput.exciseRatePerTonne),
+      })
+    : null
+  const formatAmount = (amount) =>
+    amount.toLocaleString('ka-GE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   return (
     <div className="app-shell">
@@ -168,11 +189,25 @@ function App() {
         </a>
         <p className="sidebar__caption">სამუშაო სივრცე</p>
         <nav className="sidebar__nav" aria-label="მთავარი ნავიგაცია">
-          <a className="nav-link nav-link--active" href="#declarations">
+          <button
+            className={`nav-link${activePage === 'declarations' ? ' nav-link--active' : ''}`}
+            type="button"
+            aria-current={activePage === 'declarations' ? 'page' : undefined}
+            onClick={() => setActivePage('declarations')}
+          >
             <LayoutDashboard size={18} />
             <span>დეკლარაციები</span>
             <span className="nav-link__count">{declarations.length}</span>
-          </a>
+          </button>
+          <button
+            className={`nav-link${activePage === 'calculator' ? ' nav-link--active' : ''}`}
+            type="button"
+            aria-current={activePage === 'calculator' ? 'page' : undefined}
+            onClick={() => setActivePage('calculator')}
+          >
+            <Calculator size={18} />
+            <span>ჯარიმის კალკულატორი</span>
+          </button>
         </nav>
         <div className="sidebar__bottom">
           <div className="sidebar__help">
@@ -189,13 +224,14 @@ function App() {
 
       <main className="main-content" id="declarations">
         <header className="topbar">
-          <div className="breadcrumbs"><span>სამუშაო სივრცე</span><span className="breadcrumbs__slash">/</span><strong>დეკლარაციები</strong></div>
+          <div className="breadcrumbs"><span>სამუშაო სივრცე</span><span className="breadcrumbs__slash">/</span><strong>{activePage === 'declarations' ? 'დეკლარაციები' : 'ჯარიმის კალკულატორი'}</strong></div>
           <div className="topbar__right">
             <span className="secure-label"><ShieldCheck size={15} /> მონაცემები დაცულია</span>
             <div className="topbar__avatar">CD</div>
           </div>
         </header>
 
+        {activePage === 'declarations' ? (
         <div className="page">
           <section className="page-heading">
             <div>
@@ -318,6 +354,111 @@ function App() {
           </section>
           <footer className="page-footer">CargoDesk <span>·</span> საბაჟო დოკუმენტების მართვის სივრცე</footer>
         </div>
+        ) : (
+          <div className="page">
+            <section className="page-heading">
+              <div>
+                <p className="eyebrow">საბაჟო გადასახადების გამოთვლა</p>
+                <h1>ჯარიმის კალკულატორი</h1>
+                <p className="page-heading__description">შეიყვანეთ საქონლის მონაცემები აქციზისა და დღგ-ის ჯამური თანხის გამოსათვლელად.</p>
+              </div>
+            </section>
+
+            <section className="calculator-card" aria-labelledby="calculator-input-title">
+              <div className="calculator-card__heading">
+                <span className="stat-card__icon stat-card__icon--blue"><Calculator size={18} /></span>
+                <div>
+                  <h2 id="calculator-input-title">საწყისი მონაცემები</h2>
+                  <p>აქციზის განაკვეთი მითითებულია ერთ ტონაზე.</p>
+                </div>
+              </div>
+              <div className="field-grid calculator-inputs">
+                <label className="form-field">
+                  <span>საქონლის რაოდენობა <small>კილოგრამი</small></span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={calculatorInput.quantityKg}
+                    onChange={(event) => setCalculatorInput((current) => ({ ...current, quantityKg: event.target.value }))}
+                    placeholder="მაგ. 1000"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>საქონლის საბაჟო ღირებულება <small>ლარი</small></span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={calculatorInput.customsValue}
+                    onChange={(event) => setCalculatorInput((current) => ({ ...current, customsValue: event.target.value }))}
+                    placeholder="მაგ. 2000"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>აქციზის განაკვეთი <small>ლარი / ტონა</small></span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={calculatorInput.exciseRatePerTonne}
+                    onChange={(event) => setCalculatorInput((current) => ({ ...current, exciseRatePerTonne: event.target.value }))}
+                    placeholder="მაგ. 500"
+                  />
+                </label>
+              </div>
+              {hasCalculatorError && (
+                <p className="calculator-error" role="alert">შეიყვანეთ ნულზე მეტი ან ტოლი რიცხვითი მნიშვნელობა.</p>
+              )}
+            </section>
+
+            {calculation && (
+              <section className="calculator-results" aria-live="polite" aria-labelledby="calculator-results-title">
+                <h2 id="calculator-results-title">გამოთვლის შედეგები</h2>
+                <ol className="calculation-list">
+                  <li className="calculation-item">
+                    <div>
+                      <span className="calculation-item__number">1</span>
+                      <div>
+                        <h3>აქციზის გადასახადი</h3>
+                        <p>
+                          {formatAmount(Number(calculatorInput.quantityKg))} კგ × (
+                          {formatAmount(Number(calculatorInput.exciseRatePerTonne))} ლარი / 1 000 კგ)
+                          {' = '}{formatAmount(calculation.excise)} ლარი
+                        </p>
+                      </div>
+                    </div>
+                    <strong>{formatAmount(calculation.excise)} ლარი</strong>
+                  </li>
+                  <li className="calculation-item">
+                    <div>
+                      <span className="calculation-item__number">2</span>
+                      <div>
+                        <h3>დღგ (18%)</h3>
+                        <p>
+                          ({formatAmount(Number(calculatorInput.customsValue))} ლარი + {formatAmount(calculation.excise)} ლარი)
+                          {' × 18% = '}{formatAmount(calculation.vat)} ლარი
+                        </p>
+                      </div>
+                    </div>
+                    <strong>{formatAmount(calculation.vat)} ლარი</strong>
+                  </li>
+                  <li className="calculation-item calculation-item--total">
+                    <div>
+                      <span className="calculation-item__number">3</span>
+                      <div>
+                        <h3>ჯარიმის თანხა</h3>
+                        <p>{formatAmount(calculation.excise)} ლარი + {formatAmount(calculation.vat)} ლარი = {formatAmount(calculation.penalty)} ლარი</p>
+                      </div>
+                    </div>
+                    <strong>{formatAmount(calculation.penalty)} ლარი</strong>
+                  </li>
+                </ol>
+              </section>
+            )}
+            <footer className="page-footer">CargoDesk <span>·</span> საბაჟო დოკუმენტების მართვის სივრცე</footer>
+          </div>
+        )}
       </main>
 
       {draft && (
