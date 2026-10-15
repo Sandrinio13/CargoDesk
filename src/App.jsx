@@ -1,22 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Boxes,
   Calculator,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   CircleHelp,
+  ExternalLink,
   FileText,
   FileUp,
   LayoutDashboard,
   LoaderCircle,
   Plus,
   Search,
+  ShieldAlert,
   ShieldCheck,
   X,
 } from 'lucide-react'
 import { calculateExcisePenalty } from './calculator.js'
+const sanctionsPageSize = 25
 
 const emptyDeclaration = {
   declarationNumber: '',
@@ -60,6 +65,13 @@ function App() {
     exciseRatePerTonne: '',
   })
   const [query, setQuery] = useState('')
+  const [sanctionsQuery, setSanctionsQuery] = useState('')
+  const [sanctionsFilter, setSanctionsFilter] = useState('')
+  const [sanctionsPage, setSanctionsPage] = useState(1)
+  const [expandedSanction, setExpandedSanction] = useState(null)
+  const [sanctionsData, setSanctionsData] = useState(null)
+  const [sanctionsLoading, setSanctionsLoading] = useState(false)
+  const [sanctionsError, setSanctionsError] = useState('')
   const [draft, setDraft] = useState(null)
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -79,9 +91,31 @@ function App() {
     }
   }
 
+  async function loadSanctions() {
+    setActivePage('sanctions')
+    if (sanctionsData || sanctionsLoading) return
+    setSanctionsLoading(true)
+    setSanctionsError('')
+    try {
+      const module = await import('./sanctions.json')
+      setSanctionsData(module.default)
+    } catch (loadError) {
+      setSanctionsError(
+        loadError instanceof Error ? loadError.message : 'მონაცემების ჩატვირთვა ვერ მოხერხდა.',
+      )
+    } finally {
+      setSanctionsLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadDeclarations()
   }, [])
+
+  const sanctionsFieldsByKey = useMemo(
+    () => Object.fromEntries((sanctionsData?.fields ?? []).map((field) => [field.key, field])),
+    [sanctionsData],
+  )
 
   const filteredDeclarations = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('ka')
@@ -103,6 +137,30 @@ function App() {
         .includes(normalizedQuery),
     )
   }, [declarations, query])
+
+  const filteredSanctions = useMemo(() => {
+    if (!sanctionsData) return []
+    const normalizedQuery = sanctionsQuery.trim().toLocaleLowerCase('ka')
+    return sanctionsData.rows.filter((row) => {
+      if (
+        sanctionsFilter &&
+        !row.restrictions.some((restriction) => restriction.key === sanctionsFilter)
+      ) {
+        return false
+      }
+      if (!normalizedQuery) return true
+      return [row.code, row.description, ...row.restrictions.map(({ value }) => value)]
+        .join(' ')
+        .toLocaleLowerCase('ka')
+        .includes(normalizedQuery)
+    })
+  }, [sanctionsData, sanctionsFilter, sanctionsQuery])
+
+  const sanctionsPageCount = Math.max(1, Math.ceil(filteredSanctions.length / sanctionsPageSize))
+  const visibleSanctions = filteredSanctions.slice(
+    (sanctionsPage - 1) * sanctionsPageSize,
+    sanctionsPage * sanctionsPageSize,
+  )
 
   async function handleFile(file) {
     if (!file) return
@@ -208,6 +266,16 @@ function App() {
             <Calculator size={18} />
             <span>ჯარიმის კალკულატორი</span>
           </button>
+          <button
+            className={`nav-link${activePage === 'sanctions' ? ' nav-link--active' : ''}`}
+            type="button"
+            aria-current={activePage === 'sanctions' ? 'page' : undefined}
+            onClick={loadSanctions}
+          >
+            <ShieldAlert size={18} />
+            <span>სანქციები</span>
+            {sanctionsData && <span className="nav-link__count">{sanctionsData.codedRecords.toLocaleString('ka-GE')}</span>}
+          </button>
         </nav>
         <div className="sidebar__bottom">
           <div className="sidebar__help">
@@ -224,7 +292,7 @@ function App() {
 
       <main className="main-content" id="declarations">
         <header className="topbar">
-          <div className="breadcrumbs"><span>სამუშაო სივრცე</span><span className="breadcrumbs__slash">/</span><strong>{activePage === 'declarations' ? 'დეკლარაციები' : 'ჯარიმის კალკულატორი'}</strong></div>
+          <div className="breadcrumbs"><span>სამუშაო სივრცე</span><span className="breadcrumbs__slash">/</span><strong>{activePage === 'declarations' ? 'დეკლარაციები' : activePage === 'calculator' ? 'ჯარიმის კალკულატორი' : 'სანქციები'}</strong></div>
           <div className="topbar__right">
             <span className="secure-label"><ShieldCheck size={15} /> მონაცემები დაცულია</span>
             <div className="topbar__avatar">CD</div>
@@ -354,7 +422,7 @@ function App() {
           </section>
           <footer className="page-footer">CargoDesk <span>·</span> საბაჟო დოკუმენტების მართვის სივრცე</footer>
         </div>
-        ) : (
+        ) : activePage === 'calculator' ? (
           <div className="page">
             <section className="page-heading">
               <div>
@@ -457,6 +525,213 @@ function App() {
               </section>
             )}
             <footer className="page-footer">CargoDesk <span>·</span> საბაჟო დოკუმენტების მართვის სივრცე</footer>
+          </div>
+        ) : sanctionsData ? (
+          <div className="page">
+            <section className="page-heading">
+              <div>
+                <p className="eyebrow">საქონლისა და ექსპორტის შეზღუდვები</p>
+                <h1>სანქციები</h1>
+                <p className="page-heading__description">
+                  Excel-ის რეესტრი და ოფიციალური სანქციების საძიებო ბმულები. მონაცემები განახლებულია {sanctionsData.updatedAt}.
+                </p>
+              </div>
+            </section>
+
+            <section className="stats-grid" aria-label="სანქციების რეესტრის სტატისტიკა">
+              <article className="stat-card">
+                <div className="stat-card__top"><span>სასაქონლო კოდები</span><span className="stat-card__icon stat-card__icon--blue"><Boxes size={17} /></span></div>
+                <div className="stat-card__value">{sanctionsData.codedRecords.toLocaleString('ka-GE')}<span className="stat-card__unit">კოდი</span></div>
+                <div className="stat-card__note">Excel-ის რეესტრში</div>
+              </article>
+              <article className="stat-card">
+                <div className="stat-card__top"><span>სანქციის მიმართულებები</span><span className="stat-card__icon stat-card__icon--amber"><ShieldAlert size={17} /></span></div>
+                <div className="stat-card__value">{sanctionsData.fields.length}<span className="stat-card__unit">სია</span></div>
+                <div className="stat-card__note">EU, აშშ და სხვა კონტროლის კატეგორიები</div>
+              </article>
+              <article className="stat-card">
+                <div className="stat-card__top"><span>ოფიციალური წყაროები</span><span className="stat-card__icon stat-card__icon--mint"><ExternalLink size={17} /></span></div>
+                <div className="stat-card__value">{sanctionsData.resources.length}<span className="stat-card__unit">ბმული</span></div>
+                <div className="stat-card__note">საძიებო სისტემები და რეგულაციები</div>
+              </article>
+            </section>
+
+            <section className="table-card sanctions-card">
+              <div className="table-card__heading sanctions-card__heading">
+                <div><h2>საქონლის სანქციების რეესტრი</h2><p>ძებნა სასაქონლო კოდით, აღწერით ან შეზღუდვის მნიშვნელობით</p></div>
+                <div className="sanctions-controls">
+                  <label className="search-box">
+                    <Search size={17} />
+                    <input
+                      value={sanctionsQuery}
+                      onChange={(event) => {
+                        setSanctionsQuery(event.target.value)
+                        setSanctionsPage(1)
+                      }}
+                      placeholder="კოდი ან დასახელება..."
+                      aria-label="სანქციების რეესტრის ძებნა"
+                    />
+                  </label>
+                  <label className="sanctions-filter">
+                    <span className="visually-hidden">სანქციის მიმართულება</span>
+                    <select
+                      value={sanctionsFilter}
+                      onChange={(event) => {
+                        setSanctionsFilter(event.target.value)
+                        setSanctionsPage(1)
+                      }}
+                      aria-label="სანქციის მიმართულებით გაფილტვრა"
+                    >
+                      <option value="">ყველა მიმართულება</option>
+                      {sanctionsData.fields.map((field) => (
+                        <option value={field.key} key={field.key}>{field.shortLabel}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={15} />
+                  </label>
+                </div>
+              </div>
+              <div className="table-scroll">
+                <table className="sanctions-table">
+                  <thead>
+                    <tr><th>სასაქონლო კოდი</th><th>საქონლის აღწერა</th><th>შეზღუდვები / სიები</th><th>დეტალები</th></tr>
+                  </thead>
+                  <tbody>
+                    {visibleSanctions.length ? visibleSanctions.map((row) => (
+                      <Fragment key={row.rowNumber}>
+                        <tr className={row.code ? '' : 'sanctions-table__group'}>
+                          <td>{row.code || '—'}</td>
+                          <td className="sanctions-table__description">{row.description || '—'}</td>
+                          <td>
+                            <div className="sanctions-tags">
+                              {row.restrictions.slice(0, 3).map((restriction) => {
+                                const field = sanctionsFieldsByKey[restriction.key]
+                                const suffix = restriction.value === 'კი'
+                                  ? ''
+                                  : `: ${restriction.value.slice(0, 32)}${restriction.value.length > 32 ? '…' : ''}`
+                                return (
+                                  <span
+                                    className="sanctions-tag"
+                                    key={restriction.key}
+                                    title={`${field.label}: ${restriction.value}`}
+                                  >
+                                    {field.shortLabel}{suffix}
+                                  </span>
+                                )
+                              })}
+                              {row.restrictions.length > 3 && (
+                                <span className="sanctions-tag sanctions-tag--more">+{row.restrictions.length - 3}</span>
+                              )}
+                              {!row.restrictions.length && <span className="sanctions-table__empty">—</span>}
+                            </div>
+                          </td>
+                          <td>
+                            <button
+                              className="sanctions-details-button"
+                              type="button"
+                              aria-expanded={expandedSanction === row.rowNumber}
+                              onClick={() => setExpandedSanction((current) =>
+                                current === row.rowNumber ? null : row.rowNumber,
+                              )}
+                            >
+                              {expandedSanction === row.rowNumber ? 'დახურვა' : 'ნახვა'}
+                              <ChevronDown size={14} className={expandedSanction === row.rowNumber ? 'sanctions-details-button__icon--open' : ''} />
+                            </button>
+                          </td>
+                        </tr>
+                        {expandedSanction === row.rowNumber && (
+                          <tr className="sanctions-details-row">
+                            <td colSpan="4">
+                              {row.restrictions.length ? (
+                                <dl className="sanctions-details-list">
+                                  {row.restrictions.map((restriction) => (
+                                    <div key={restriction.key}>
+                                      <dt>{sanctionsFieldsByKey[restriction.key].label}</dt>
+                                      <dd>{restriction.value}</dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              ) : (
+                                <p>ამ ჩანაწერზე დამატებითი შეზღუდვა მითითებული არ არის.</p>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )) : (
+                      <tr><td colSpan="4" className="empty-state sanctions-empty-state">
+                        <div className="empty-state__icon"><Search size={22} /></div>
+                        <strong>შედეგი ვერ მოიძებნა</strong>
+                        <span>შეცვალეთ საძიებო სიტყვა ან სანქციის მიმართულება.</span>
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="table-footer sanctions-card__footer">
+                <span>ნაჩვენებია <strong>{filteredSanctions.length ? (sanctionsPage - 1) * sanctionsPageSize + 1 : 0}–{Math.min(sanctionsPage * sanctionsPageSize, filteredSanctions.length)}</strong> / {filteredSanctions.length.toLocaleString('ka-GE')} ჩანაწერი</span>
+                <div className="sanctions-pagination" aria-label="რეესტრის გვერდები">
+                  <button
+                    type="button"
+                    aria-label="წინა გვერდი"
+                    onClick={() => {
+                      setSanctionsPage((current) => current - 1)
+                      setExpandedSanction(null)
+                    }}
+                    disabled={sanctionsPage <= 1}
+                  ><ChevronLeft size={16} /></button>
+                  <span>{sanctionsPage} / {sanctionsPageCount}</span>
+                  <button
+                    type="button"
+                    aria-label="შემდეგი გვერდი"
+                    onClick={() => {
+                      setSanctionsPage((current) => current + 1)
+                      setExpandedSanction(null)
+                    }}
+                    disabled={sanctionsPage >= sanctionsPageCount}
+                  ><ChevronRight size={16} /></button>
+                </div>
+              </div>
+            </section>
+
+            <section className="sanctions-resources" aria-labelledby="sanctions-resources-title">
+              <div className="sanctions-resources__heading">
+                <div><h2 id="sanctions-resources-title">საძიებო სისტემები და წყაროები</h2><p>Excel-ის ფაილში მითითებული ოფიციალური ბმულები</p></div>
+              </div>
+              <div className="sanctions-resource-grid">
+                {Array.from(new Set(sanctionsData.resources.map((resource) => resource.group))).map((group) => (
+                  <article className="sanctions-resource-card" key={group}>
+                    <h3>{group}</h3>
+                    <ul>
+                      {sanctionsData.resources.filter((resource) => resource.group === group).map((resource) => (
+                        <li key={resource.url}>
+                          <a href={resource.url} target="_blank" rel="noreferrer">
+                            <span>{resource.label}</span><ExternalLink size={14} />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
+            </section>
+            <footer className="page-footer">CargoDesk <span>·</span> სანქციების რეესტრი · განახლებულია {sanctionsData.updatedAt}</footer>
+          </div>
+        ) : (
+          <div className="page">
+            <section className="sanctions-loading" aria-live="polite">
+              {sanctionsError ? (
+                <>
+                  <div className="alert alert--error" role="alert">
+                    <X size={17} />
+                    <span>სანქციების მონაცემების ჩატვირთვა ვერ მოხერხდა: {sanctionsError}</span>
+                  </div>
+                  <button className="button button--outline" type="button" onClick={loadSanctions}>ხელახლა ცდა</button>
+                </>
+              ) : (
+                <><LoaderCircle size={20} className="spin" /> სანქციების რეესტრი იტვირთება...</>
+              )}
+            </section>
           </div>
         )}
       </main>
