@@ -6,6 +6,11 @@ import multer from 'multer'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { extractDeclaration } from './extract.js'
+import {
+  normalizeReservoir,
+  normalizeReservoirMovement,
+  ReservoirValidationError,
+} from './reservoirs.js'
 
 const require = createRequire(import.meta.url)
 const pdfParse = require('pdf-parse')
@@ -45,6 +50,49 @@ async function ensureDatabase() {
     ALTER TABLE declarations
     ADD COLUMN IF NOT EXISTS exporter TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS importer TEXT NOT NULL DEFAULT ''
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS reservoirs (
+      id BIGSERIAL PRIMARY KEY,
+      reservoir_number TEXT NOT NULL UNIQUE,
+      capacity_kg NUMERIC(14, 3) NOT NULL CHECK (capacity_kg > 0),
+      current_weight_kg NUMERIC(14, 3) NOT NULL DEFAULT 0
+        CHECK (current_weight_kg >= 0 AND current_weight_kg <= capacity_kg),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'reservoirs'
+          AND column_name = 'capacity_m3'
+      ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'reservoirs'
+          AND column_name = 'capacity_kg'
+      ) THEN
+        ALTER TABLE reservoirs RENAME COLUMN capacity_m3 TO capacity_kg;
+      END IF;
+
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'reservoirs'
+          AND column_name = 'current_volume_m3'
+      ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'reservoirs'
+          AND column_name = 'current_weight_kg'
+      ) THEN
+        ALTER TABLE reservoirs RENAME COLUMN current_volume_m3 TO current_weight_kg;
+      END IF;
+    END;
+    $$
   `
   databaseReady = true
 }
@@ -89,6 +137,105 @@ function normalizeDeclaration(body) {
 
 app.get('/api/health', (_request, response) => {
   response.json({ databaseConfigured: Boolean(sql), databaseReady })
+})
+
+app.get('/api/reservoirs', requireDatabase, async (_request, response, next) => {
+  try {
+    const rows = await sql`
+      SELECT id, reservoir_number, capacity_kg, current_weight_kg, created_at
+      FROM reservoirs
+      ORDER BY created_at, id
+    `
+    response.json(rows)
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/reservoirs', requireDatabase, async (request, response, next) => {
+  try {
+    const reservoir = normalizeReservoir(request.body)
+    const rows = await sql`
+      INSERT INTO reservoirs (reservoir_number, capacity_kg, current_weight_kg)
+      VALUES (
+        ${reservoir.reservoirNumber},
+        ${reservoir.capacityKg},
+        ${reservoir.currentWeightKg}
+      )
+      RETURNING id, reservoir_number, capacity_kg, current_weight_kg, created_at
+    `
+    response.status(201).json(rows[0])
+  } catch (error) {
+    if (error instanceof ReservoirValidationError) {
+      return response.status(400).json({ error: error.message })
+    }
+    if (error.code === '23505') {
+      return response.status(409).json({ error: 'ამ ნომრით რეზერვუარი უკვე არსებობს.' })
+    }
+    next(error)
+  }
+})
+
+app.delete('/api/reservoirs/:id', requireDatabase, async (request, response, next) => {
+  try {
+    if (!/^\d+$/.test(request.params.id)) {
+      return response.status(400).json({ error: 'რეზერვუარის ნომერი არასწორია.' })
+    }
+
+    const rows = await sql`
+      DELETE FROM reservoirs
+      WHERE id = ${request.params.id}
+      RETURNING id
+    `
+    if (!rows.length) {
+      return response.status(404).json({ error: 'რეზერვუარი ვერ მოიძებნა.' })
+    }
+
+    response.json({ id: rows[0].id })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/reservoirs/:id/transactions', requireDatabase, async (request, response, next) => {
+  try {
+    if (!/^\d+$/.test(request.params.id)) {
+      return response.status(400).json({ error: 'რეზერვუარის ნომერი არასწორია.' })
+    }
+    const movement = normalizeReservoirMovement(request.body)
+    const isReceiving = movement.direction === 'receive'
+    const changeKg = isReceiving ? movement.quantityKg : -movement.quantityKg
+
+    const rows = await sql`
+      UPDATE reservoirs
+      SET current_weight_kg = current_weight_kg + ${changeKg}
+      WHERE id = ${request.params.id}
+        AND (${isReceiving} = FALSE OR current_weight_kg + ${movement.quantityKg} <= capacity_kg)
+        AND (${isReceiving} = TRUE OR current_weight_kg >= ${movement.quantityKg})
+      RETURNING id, reservoir_number, capacity_kg, current_weight_kg, created_at
+    `
+    if (!rows.length) {
+      const existing = await sql`
+        SELECT id, capacity_kg, current_weight_kg
+        FROM reservoirs
+        WHERE id = ${request.params.id}
+      `
+      if (!existing.length) {
+        return response.status(404).json({ error: 'რეზერვუარი ვერ მოიძებნა.' })
+      }
+      const error = isReceiving
+        ? 'მიღების რაოდენობა რეზერვუარში დარჩენილ ტევადობას აღემატება.'
+        : 'გასაშვები რაოდენობა რეზერვუარში არსებულ მარაგს აღემატება.'
+      return response.status(409).json({ error })
+    }
+
+    response.json(rows[0])
+  } catch (error) {
+    if (error instanceof ReservoirValidationError) {
+      return response.status(400).json({ error: error.message })
+    }
+    next(error)
+  }
 })
 
 app.post('/api/declarations/parse', upload.single('file'), async (request, response, next) => {

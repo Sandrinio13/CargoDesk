@@ -9,18 +9,23 @@ import {
   ChevronRight,
   ChevronDown,
   CircleHelp,
+  Droplets,
   ExternalLink,
   FileText,
   FileUp,
+  Layers3,
   LayoutDashboard,
   LoaderCircle,
   Plus,
   Search,
   ShieldAlert,
   ShieldCheck,
+  Terminal,
+  Trash2,
   X,
 } from 'lucide-react'
 import { calculateExcisePenalty } from './calculator.js'
+import { normalizeReservoirRecord, normalizeReservoirRecords } from './reservoirs.js'
 const sanctionsPageSize = 25
 
 const emptyDeclaration = {
@@ -77,7 +82,47 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [reservoirs, setReservoirs] = useState([])
+  const [reservoirsLoading, setReservoirsLoading] = useState(false)
+  const [reservoirsLoaded, setReservoirsLoaded] = useState(false)
+  const [reservoirsError, setReservoirsError] = useState('')
+  const [reservoirModalOpen, setReservoirModalOpen] = useState(false)
+  const [reservoirNumber, setReservoirNumber] = useState('')
+  const [reservoirCapacity, setReservoirCapacity] = useState('')
+  const [reservoirFormError, setReservoirFormError] = useState('')
+  const [reservoirSaving, setReservoirSaving] = useState(false)
+  const [reservoirDeleting, setReservoirDeleting] = useState(false)
+  const [reservoirDeleteModalOpen, setReservoirDeleteModalOpen] = useState(false)
+  const [reservoirDeleteError, setReservoirDeleteError] = useState('')
+  const [selectedReservoirId, setSelectedReservoirId] = useState(null)
+  const [receiveWeightInput, setReceiveWeightInput] = useState('')
+  const [releaseWeightInput, setReleaseWeightInput] = useState('')
+  const [reservoirMovementSaving, setReservoirMovementSaving] = useState('')
+  const [receiveWeightError, setReceiveWeightError] = useState('')
+  const [releaseWeightError, setReleaseWeightError] = useState('')
   const fileInput = useRef(null)
+
+  async function loadReservoirs() {
+    setReservoirsLoading(true)
+    setReservoirsError('')
+    try {
+      const loadedReservoirs = normalizeReservoirRecords(
+        await readResponse(await fetch('/api/reservoirs')),
+      )
+      setReservoirs(loadedReservoirs)
+      const selected = loadedReservoirs.find(
+        (reservoir) => String(reservoir.id) === String(selectedReservoirId),
+      ) ?? loadedReservoirs[0]
+      setSelectedReservoirId(selected?.id ?? null)
+      setReceiveWeightInput('')
+      setReleaseWeightInput('')
+      setReservoirsLoaded(true)
+    } catch (loadError) {
+      setReservoirsError(loadError.message)
+    } finally {
+      setReservoirsLoading(false)
+    }
+  }
 
   async function loadDeclarations() {
     setLoading(true)
@@ -111,6 +156,12 @@ function App() {
   useEffect(() => {
     loadDeclarations()
   }, [])
+
+  useEffect(() => {
+    if (activePage === 'terminal' && !reservoirsLoaded && !reservoirsLoading) {
+      loadReservoirs()
+    }
+  }, [activePage, reservoirsLoaded])
 
   const sanctionsFieldsByKey = useMemo(
     () => Object.fromEntries((sanctionsData?.fields ?? []).map((field) => [field.key, field])),
@@ -237,6 +288,134 @@ function App() {
     : null
   const formatAmount = (amount) =>
     amount.toLocaleString('ka-GE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const formatCapacity = (amount) =>
+    amount.toLocaleString('ka-GE', { maximumFractionDigits: 3 })
+  const selectedReservoir = reservoirs.find(
+    (reservoir) => String(reservoir.id) === String(selectedReservoirId),
+  )
+  const reservoirCapacityTotal = reservoirs.reduce(
+    (total, reservoir) => total + reservoir.capacity_kg,
+    0,
+  )
+  const reservoirWeightTotal = reservoirs.reduce(
+    (total, reservoir) => total + reservoir.current_weight_kg,
+    0,
+  )
+  const receiveWeight = Number(receiveWeightInput)
+  const releaseWeight = Number(releaseWeightInput)
+  const receiveWeightInvalid =
+    receiveWeightInput === '' ||
+    !Number.isFinite(receiveWeight) ||
+    receiveWeight <= 0 ||
+    (selectedReservoir &&
+      receiveWeight > selectedReservoir.capacity_kg - selectedReservoir.current_weight_kg)
+  const releaseWeightInvalid =
+    releaseWeightInput === '' ||
+    !Number.isFinite(releaseWeight) ||
+    releaseWeight <= 0 ||
+    (selectedReservoir && releaseWeight > selectedReservoir.current_weight_kg)
+  const selectedReservoirPercent = selectedReservoir
+    ? Math.min(
+        100,
+        Math.max(0, Math.round((selectedReservoir.current_weight_kg / selectedReservoir.capacity_kg) * 100)),
+      )
+    : 0
+
+  function selectReservoir(reservoir) {
+    setSelectedReservoirId(reservoir.id)
+    setReceiveWeightInput('')
+    setReleaseWeightInput('')
+    setReceiveWeightError('')
+    setReleaseWeightError('')
+    setReservoirDeleteError('')
+  }
+
+  async function addReservoir(event) {
+    event.preventDefault()
+    setReservoirSaving(true)
+    setReservoirFormError('')
+    try {
+      const created = await readResponse(await fetch('/api/reservoirs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reservoirNumber,
+          capacityKg: Number(reservoirCapacity),
+        }),
+      }))
+      const newReservoir = normalizeReservoirRecord(created)
+      setReservoirs((current) => [...current, newReservoir])
+      selectReservoir(newReservoir)
+      setReservoirNumber('')
+      setReservoirCapacity('')
+      setReservoirModalOpen(false)
+    } catch (saveError) {
+      setReservoirFormError(saveError.message)
+    } finally {
+      setReservoirSaving(false)
+    }
+  }
+
+  async function moveReservoirWeight(event, direction) {
+    event.preventDefault()
+    const quantityKg = direction === 'receive' ? receiveWeight : releaseWeight
+    const invalid = direction === 'receive' ? receiveWeightInvalid : releaseWeightInvalid
+    if (!selectedReservoir || invalid) return
+
+    setReservoirMovementSaving(direction)
+    if (direction === 'receive') setReceiveWeightError('')
+    else setReleaseWeightError('')
+    try {
+      const updated = await readResponse(await fetch(
+        `/api/reservoirs/${encodeURIComponent(selectedReservoir.id)}/transactions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direction, quantityKg }),
+        },
+      ))
+      const updatedReservoir = normalizeReservoirRecord(updated)
+      setReservoirs((current) =>
+        current.map((reservoir) =>
+          String(reservoir.id) === String(updatedReservoir.id) ? updatedReservoir : reservoir,
+        ),
+      )
+      if (direction === 'receive') setReceiveWeightInput('')
+      else setReleaseWeightInput('')
+    } catch (saveError) {
+      if (direction === 'receive') setReceiveWeightError(saveError.message)
+      else setReleaseWeightError(saveError.message)
+    } finally {
+      setReservoirMovementSaving('')
+    }
+  }
+
+  async function deleteReservoir() {
+    if (!selectedReservoir || reservoirDeleting || reservoirMovementSaving) return
+
+    setReservoirDeleting(true)
+    setReservoirDeleteError('')
+    try {
+      await readResponse(await fetch(
+        `/api/reservoirs/${encodeURIComponent(selectedReservoir.id)}`,
+        { method: 'DELETE' },
+      ))
+      const remainingReservoirs = reservoirs.filter(
+        (reservoir) => String(reservoir.id) !== String(selectedReservoir.id),
+      )
+      setReservoirs(remainingReservoirs)
+      setSelectedReservoirId(remainingReservoirs[0]?.id ?? null)
+      setReceiveWeightInput('')
+      setReleaseWeightInput('')
+      setReceiveWeightError('')
+      setReleaseWeightError('')
+      setReservoirDeleteModalOpen(false)
+    } catch (deleteError) {
+      setReservoirDeleteError(deleteError.message)
+    } finally {
+      setReservoirDeleting(false)
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -276,6 +455,15 @@ function App() {
             <span>სანქციები</span>
             {sanctionsData && <span className="nav-link__count">{sanctionsData.codedRecords.toLocaleString('ka-GE')}</span>}
           </button>
+          <button
+            className={`nav-link${activePage === 'terminal' ? ' nav-link--active' : ''}`}
+            type="button"
+            aria-current={activePage === 'terminal' ? 'page' : undefined}
+            onClick={() => setActivePage('terminal')}
+          >
+            <Terminal size={18} />
+            <span>ტერმინალი</span>
+          </button>
         </nav>
         <div className="sidebar__bottom">
           <div className="sidebar__help">
@@ -292,7 +480,7 @@ function App() {
 
       <main className="main-content" id="declarations">
         <header className="topbar">
-          <div className="breadcrumbs"><span>სამუშაო სივრცე</span><span className="breadcrumbs__slash">/</span><strong>{activePage === 'declarations' ? 'დეკლარაციები' : activePage === 'calculator' ? 'ჯარიმის კალკულატორი' : 'სანქციები'}</strong></div>
+          <div className="breadcrumbs"><span>სამუშაო სივრცე</span><span className="breadcrumbs__slash">/</span><strong>{activePage === 'declarations' ? 'დეკლარაციები' : activePage === 'calculator' ? 'ჯარიმის კალკულატორი' : activePage === 'terminal' ? 'ტერმინალი' : 'სანქციები'}</strong></div>
           <div className="topbar__right">
             <span className="secure-label"><ShieldCheck size={15} /> მონაცემები დაცულია</span>
             <div className="topbar__avatar">CD</div>
@@ -526,6 +714,269 @@ function App() {
             )}
             <footer className="page-footer">CargoDesk <span>·</span> საბაჟო დოკუმენტების მართვის სივრცე</footer>
           </div>
+        ) : activePage === 'terminal' ? (
+          <div className="page">
+            <section className="page-heading terminal-heading">
+              <div>
+                <p className="eyebrow">საწვავის მართვა</p>
+                <h1>ტერმინალი</h1>
+                <p className="page-heading__description">აკონტროლეთ რეზერვუარების ტევადობა და მიმდინარე დატვირთვა.</p>
+              </div>
+              <button
+                className="button button--primary"
+                type="button"
+                onClick={() => {
+                  setReservoirFormError('')
+                  setReservoirModalOpen(true)
+                }}
+                disabled={!reservoirsLoaded}
+              >
+                <Plus size={18} />
+                რეზერვუარის დამატება
+              </button>
+            </section>
+            <section className="terminal-summary" aria-label="რეზერვუარების შეჯამება">
+              <article className="terminal-summary__item">
+                <span className="terminal-summary__icon"><Boxes size={17} /></span>
+                <div><span>რეზერვუარები</span><strong>{reservoirs.length}</strong></div>
+              </article>
+              <article className="terminal-summary__item">
+                <span className="terminal-summary__icon"><Layers3 size={17} /></span>
+                <div><span>ჯამური ტევადობა</span><strong>{formatCapacity(reservoirCapacityTotal)} <small>კგ</small></strong></div>
+              </article>
+              <article className="terminal-summary__item">
+                <span className="terminal-summary__icon terminal-summary__icon--blue"><Droplets size={17} /></span>
+                <div><span>მიმდინარე დატვირთვა</span><strong>{formatAmount(reservoirWeightTotal)} <small>კგ</small></strong></div>
+              </article>
+            </section>
+
+            {reservoirsError && (
+              <div className="alert alert--error terminal-error" role="alert">
+                <X size={17} />
+                <span>რეზერვუარების ჩატვირთვა ვერ მოხერხდა: {reservoirsError}</span>
+                <button className="button button--outline" type="button" onClick={loadReservoirs}>ხელახლა ცდა</button>
+              </div>
+            )}
+
+            <div className="terminal-workspace">
+              <section className="terminal-map-card" aria-labelledby="terminal-map-title">
+                <header className="terminal-card__header">
+                  <div>
+                    <p className="eyebrow">ობიექტის სქემა</p>
+                    <h2 id="terminal-map-title">რეზერვუარების რუკა</h2>
+                  </div>
+                  <span className="terminal-map__count"><span /> {reservoirs.length} რეზერვუარი</span>
+                </header>
+                {reservoirsLoading ? (
+                  <div className="terminal-map__message" aria-live="polite">
+                    <LoaderCircle size={20} className="spin" /> რეზერვუარები იტვირთება...
+                  </div>
+                ) : reservoirsError ? (
+                  <div className="terminal-map__message terminal-map__message--empty">
+                    მონაცემების ჩატვირთვა ვერ მოხერხდა.
+                  </div>
+                ) : reservoirs.length === 0 ? (
+                  <div className="terminal-map__message terminal-map__message--empty">
+                    <span className="terminal-empty__icon"><Boxes size={25} /></span>
+                    <strong>რუკაზე რეზერვუარები ჯერ არ არის</strong>
+                    <span>დაამატეთ პირველი რეზერვუარი, რომ დაიწყოთ ტევადობისა და დატვირთვის მართვა.</span>
+                    <button
+                      className="button button--outline"
+                      type="button"
+                      onClick={() => {
+                        setReservoirFormError('')
+                        setReservoirModalOpen(true)
+                      }}
+                    >
+                      <Plus size={16} /> რეზერვუარის დამატება
+                    </button>
+                  </div>
+                ) : (
+                  <div className="terminal-map">
+                    <svg className="terminal-map__pipes" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
+                      <path d="M0 278H150V126H390V365H650V175H1000" />
+                      <path d="M0 430H270V210H530V470H820V300H1000" />
+                      <path d="M0 105H90V250H310V70H720V390H1000" />
+                      <path d="M148 276H270M390 126H530M650 175H820" />
+                      <circle cx="150" cy="278" r="7" />
+                      <circle cx="390" cy="365" r="7" />
+                      <circle cx="650" cy="175" r="7" />
+                      <circle cx="820" cy="300" r="7" />
+                    </svg>
+                    <div className="terminal-map__grid">
+                      {reservoirs.map((reservoir) => {
+                        const percent = Math.round(
+                          (reservoir.current_weight_kg / reservoir.capacity_kg) * 100,
+                        )
+                        const isSelected = String(reservoir.id) === String(selectedReservoirId)
+                        return (
+                          <button
+                            className={`reservoir-marker${isSelected ? ' reservoir-marker--selected' : ''}`}
+                            key={reservoir.id}
+                            type="button"
+                            aria-pressed={isSelected}
+                            aria-label={`${reservoir.reservoir_number}, ${percent}% დატვირთული`}
+                            disabled={reservoirDeleting}
+                            onClick={() => selectReservoir(reservoir)}
+                          >
+                            <span className="reservoir-marker__labels">
+                              <strong>{reservoir.reservoir_number}</strong>
+                              <span>{percent}%</span>
+                            </span>
+                            <span className="reservoir-tank" aria-hidden="true">
+                              <span
+                                className="reservoir-tank__liquid"
+                                style={{ height: `${percent}%` }}
+                              />
+                              <span className="reservoir-tank__top" />
+                            </span>
+                            <span className="reservoir-marker__capacity">
+                              {formatAmount(reservoir.current_weight_kg)} / {formatCapacity(reservoir.capacity_kg)} კგ
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="terminal-map__legend"><span /> საწვავის მილსადენი</div>
+                  </div>
+                )}
+              </section>
+
+              <aside className="reservoir-details" aria-labelledby="reservoir-details-title">
+                {selectedReservoir ? (
+                  <>
+                    <header className="terminal-card__header">
+                      <div>
+                        <p className="eyebrow">რეზერვუარის დეტალები</p>
+                        <h2 id="reservoir-details-title">{selectedReservoir.reservoir_number}</h2>
+                      </div>
+                      <div className="reservoir-details__actions">
+                        <span className="reservoir-details__badge">{selectedReservoirPercent}%</span>
+                        <button
+                          className="button button--danger reservoir-details__delete"
+                          type="button"
+                          onClick={() => {
+                            setReservoirDeleteError('')
+                            setReservoirDeleteModalOpen(true)
+                          }}
+                          disabled={reservoirDeleting || Boolean(reservoirMovementSaving)}
+                          aria-label={`რეზერვუარის ${selectedReservoir.reservoir_number} წაშლა`}
+                        >
+                          {reservoirDeleting
+                            ? <LoaderCircle size={15} className="spin" />
+                            : <Trash2 size={15} />}
+                          წაშლა
+                        </button>
+                      </div>
+                    </header>
+                    <div
+                      className="reservoir-progress"
+                      role="progressbar"
+                      aria-label={`${selectedReservoir.reservoir_number} დატვირთვა`}
+                      aria-valuemin="0"
+                      aria-valuemax={selectedReservoir.capacity_kg}
+                      aria-valuenow={selectedReservoir.current_weight_kg}
+                    >
+                      <span
+                        className="reservoir-progress__fill"
+                        style={{ width: `${selectedReservoirPercent}%` }}
+                      />
+                    </div>
+                    <div className="reservoir-details__totals">
+                      <span>დატვირთვა</span>
+                      <strong>{formatAmount(selectedReservoir.current_weight_kg)} <small>კგ</small></strong>
+                    </div>
+                    <div className="reservoir-details__totals">
+                      <span>ტევადობა</span>
+                      <strong>{formatCapacity(selectedReservoir.capacity_kg)} <small>კგ</small></strong>
+                    </div>
+                    <form
+                      className="reservoir-transaction-form"
+                      onSubmit={(event) => moveReservoirWeight(event, 'receive')}
+                    >
+                      <label className="form-field">
+                        <span>რეზერვუარში მიღება <small>კგ</small></span>
+                        <input
+                          id="reservoir-receive-weight"
+                          type="number"
+                          min="0.001"
+                          max={selectedReservoir.capacity_kg - selectedReservoir.current_weight_kg}
+                          step="0.001"
+                          value={receiveWeightInput}
+                          onChange={(event) => {
+                            setReceiveWeightInput(event.target.value)
+                            setReceiveWeightError('')
+                          }}
+                          disabled={Boolean(reservoirMovementSaving) || reservoirDeleting}
+                          required
+                        />
+                      </label>
+                      {receiveWeightError && (
+                        <p className="reservoir-transaction-form__error" role="alert">{receiveWeightError}</p>
+                      )}
+                      {receiveWeightInvalid && receiveWeightInput !== '' && (
+                        <p className="reservoir-transaction-form__error" role="alert">
+                          მისაღები რაოდენობა დარჩენილ ტევადობას არ უნდა აღემატებოდეს.
+                        </p>
+                      )}
+                      <button
+                        className="button button--primary reservoir-transaction-form__submit"
+                        type="submit"
+                        disabled={Boolean(reservoirMovementSaving) || reservoirDeleting || receiveWeightInvalid}
+                      >
+                        {reservoirMovementSaving === 'receive' && <LoaderCircle size={16} className="spin" />}
+                        მიღება
+                      </button>
+                    </form>
+                    <form
+                      className="reservoir-transaction-form"
+                      onSubmit={(event) => moveReservoirWeight(event, 'release')}
+                    >
+                      <label className="form-field">
+                        <span>რეზერვუარიდან გაშვება <small>კგ</small></span>
+                        <input
+                          id="reservoir-release-weight"
+                          type="number"
+                          min="0.001"
+                          max={selectedReservoir.current_weight_kg}
+                          step="0.001"
+                          value={releaseWeightInput}
+                          onChange={(event) => {
+                            setReleaseWeightInput(event.target.value)
+                            setReleaseWeightError('')
+                          }}
+                          disabled={Boolean(reservoirMovementSaving) || reservoirDeleting}
+                          required
+                        />
+                      </label>
+                      {releaseWeightError && (
+                        <p className="reservoir-transaction-form__error" role="alert">{releaseWeightError}</p>
+                      )}
+                      {releaseWeightInvalid && releaseWeightInput !== '' && (
+                        <p className="reservoir-transaction-form__error" role="alert">
+                          გასაშვები რაოდენობა არსებულ მარაგს არ უნდა აღემატებოდეს.
+                        </p>
+                      )}
+                      <button
+                        className="button button--outline reservoir-transaction-form__submit"
+                        type="submit"
+                        disabled={Boolean(reservoirMovementSaving) || reservoirDeleting || releaseWeightInvalid}
+                      >
+                        {reservoirMovementSaving === 'release' && <LoaderCircle size={16} className="spin" />}
+                        გაშვება
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <div className="reservoir-details__empty">
+                    <span className="terminal-empty__icon"><Droplets size={23} /></span>
+                    <strong id="reservoir-details-title">აირჩიეთ რეზერვუარი</strong>
+                    <span>დატვირთვისა და ტევადობის დეტალების სანახავად აირჩიეთ რეზერვუარი რუკაზე.</span>
+                  </div>
+                )}
+              </aside>
+            </div>
+          </div>
         ) : sanctionsData ? (
           <div className="page">
             <section className="page-heading">
@@ -735,6 +1186,173 @@ function App() {
           </div>
         )}
       </main>
+
+      {reservoirModalOpen && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !reservoirSaving) {
+              setReservoirModalOpen(false)
+            }
+          }}
+        >
+          <section
+            className="review-modal reservoir-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservoir-modal-title"
+          >
+            <header className="review-modal__header">
+              <div>
+                <div className="review-modal__icon"><Boxes size={20} /></div>
+                <div>
+                  <p className="eyebrow">ტერმინალი</p>
+                  <h2 id="reservoir-modal-title">რეზერვუარის დამატება</h2>
+                </div>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setReservoirModalOpen(false)}
+                disabled={reservoirSaving}
+                aria-label="დახურვა"
+              >
+                <X size={20} />
+              </button>
+            </header>
+            {reservoirFormError && (
+              <div className="alert alert--error" role="alert">
+                <X size={17} /><span>{reservoirFormError}</span>
+              </div>
+            )}
+            <form onSubmit={addReservoir}>
+              <div className="field-grid reservoir-modal__fields">
+                <label className="form-field form-field--wide">
+                  <span>რეზერვუარის ნომერი</span>
+                  <input
+                    id="reservoir-number"
+                    type="text"
+                    maxLength="60"
+                    value={reservoirNumber}
+                    onChange={(event) => setReservoirNumber(event.target.value)}
+                    placeholder="მაგ. R-01"
+                    autoFocus
+                    required
+                  />
+                </label>
+                <label className="form-field form-field--wide">
+                  <span>ტევადობა <small>კგ</small></span>
+                  <input
+                    id="reservoir-capacity"
+                    type="number"
+                    min="0.001"
+                    max="99999999999.999"
+                    step="0.001"
+                    value={reservoirCapacity}
+                    onChange={(event) => setReservoirCapacity(event.target.value)}
+                    placeholder="მაგ. 2500"
+                    required
+                  />
+                </label>
+              </div>
+              <div className="review-modal__footer">
+                <span>ახალი რეზერვუარი რუკაზე ცარიელი გამოჩნდება.</span>
+                <div>
+                  <button
+                    className="button button--outline"
+                    type="button"
+                    onClick={() => setReservoirModalOpen(false)}
+                    disabled={reservoirSaving}
+                  >
+                    გაუქმება
+                  </button>
+                  <button className="button button--primary" type="submit" disabled={reservoirSaving}>
+                    {reservoirSaving ? <LoaderCircle size={16} className="spin" /> : <Plus size={16} />}
+                    დამატება
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {reservoirDeleteModalOpen && selectedReservoir && (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !reservoirDeleting) {
+              setReservoirDeleteModalOpen(false)
+            }
+          }}
+        >
+          <section
+            className="review-modal reservoir-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservoir-delete-modal-title"
+            aria-describedby="reservoir-delete-modal-description"
+          >
+            <header className="review-modal__header">
+              <div>
+                <div className="review-modal__icon review-modal__icon--danger"><Trash2 size={20} /></div>
+                <div>
+                  <p className="eyebrow">რეზერვუარის წაშლა</p>
+                  <h2 id="reservoir-delete-modal-title">დაადასტურეთ წაშლა</h2>
+                </div>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setReservoirDeleteModalOpen(false)}
+                disabled={reservoirDeleting}
+                aria-label="დახურვა"
+              >
+                <X size={20} />
+              </button>
+            </header>
+            <p className="reservoir-delete-modal__description" id="reservoir-delete-modal-description">
+              ნამდვილად გსურთ რეზერვუარის <strong>{selectedReservoir.reservoir_number}</strong> წაშლა?
+              ეს მოქმედება შეუქცევადია და წაშლის რეზერვუარსა და მის მიმდინარე მარაგს.
+            </p>
+            <div className="reservoir-delete-modal__weight">
+              მიმდინარე მარაგი
+              <strong>{formatAmount(selectedReservoir.current_weight_kg)} კგ</strong>
+            </div>
+            {reservoirDeleteError && (
+              <div className="alert alert--error reservoir-delete-modal__error" role="alert">
+                <X size={17} /><span>{reservoirDeleteError}</span>
+              </div>
+            )}
+            <div className="review-modal__footer">
+              <span>რეზერვუარის წაშლის შემდეგ მონაცემების აღდგენა ვერ მოხერხდება.</span>
+              <div>
+                <button
+                  className="button button--outline"
+                  type="button"
+                  onClick={() => setReservoirDeleteModalOpen(false)}
+                  disabled={reservoirDeleting}
+                >
+                  გაუქმება
+                </button>
+                <button
+                  className="button button--danger"
+                  type="button"
+                  onClick={deleteReservoir}
+                  disabled={reservoirDeleting}
+                >
+                  {reservoirDeleting
+                    ? <LoaderCircle size={16} className="spin" />
+                    : <Trash2 size={16} />}
+                  წაშლა
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {draft && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
