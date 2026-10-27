@@ -25,7 +25,11 @@ import {
   X,
 } from 'lucide-react'
 import { calculateExcisePenalty } from './calculator.js'
-import { normalizeReservoirRecord, normalizeReservoirRecords } from './reservoirs.js'
+import {
+  filterReservoirsByNumber,
+  normalizeReservoirRecord,
+  normalizeReservoirRecords,
+} from './reservoirs.js'
 const sanctionsPageSize = 25
 
 const emptyDeclaration = {
@@ -86,6 +90,7 @@ function App() {
   const [reservoirsLoading, setReservoirsLoading] = useState(false)
   const [reservoirsLoaded, setReservoirsLoaded] = useState(false)
   const [reservoirsError, setReservoirsError] = useState('')
+  const [reservoirSearch, setReservoirSearch] = useState('')
   const [reservoirModalOpen, setReservoirModalOpen] = useState(false)
   const [reservoirNumber, setReservoirNumber] = useState('')
   const [reservoirCapacity, setReservoirCapacity] = useState('')
@@ -295,6 +300,7 @@ function App() {
   const selectedReservoir = reservoirs.find(
     (reservoir) => String(reservoir.id) === String(selectedReservoirId),
   )
+  const visibleReservoirs = filterReservoirsByNumber(reservoirs, reservoirSearch)
   const reservoirCapacityTotal = reservoirs.reduce(
     (total, reservoir) => total + reservoir.capacity_kg,
     0,
@@ -324,12 +330,22 @@ function App() {
     : 0
 
   function selectReservoir(reservoir) {
-    setSelectedReservoirId(reservoir.id)
+    setSelectedReservoirId(reservoir?.id ?? null)
     setReceiveWeightInput('')
     setReleaseWeightInput('')
     setReceiveWeightError('')
     setReleaseWeightError('')
     setReservoirDeleteError('')
+  }
+
+  function searchReservoirs(value) {
+    setReservoirSearch(value)
+    const matchingReservoirs = filterReservoirsByNumber(reservoirs, value)
+    if (!matchingReservoirs.some(
+      (reservoir) => String(reservoir.id) === String(selectedReservoirId),
+    )) {
+      selectReservoir(matchingReservoirs[0] ?? null)
+    }
   }
 
   async function addReservoir(event) {
@@ -769,6 +785,18 @@ function App() {
                   </div>
                   <span className="terminal-map__count"><span /> {reservoirs.length} რეზერვუარი</span>
                 </header>
+                {reservoirs.length > 0 && (
+                  <label className="reservoir-search">
+                    <Search size={16} aria-hidden="true" />
+                    <input
+                      type="search"
+                      value={reservoirSearch}
+                      onChange={(event) => searchReservoirs(event.target.value)}
+                      placeholder="რეზერვუარის ნომრით ძებნა..."
+                      aria-label="რეზერვუარის ნომრით ძებნა"
+                    />
+                  </label>
+                )}
                 {reservoirsLoading ? (
                   <div className="terminal-map__message" aria-live="polite">
                     <LoaderCircle size={20} className="spin" /> რეზერვუარები იტვირთება...
@@ -793,6 +821,10 @@ function App() {
                       <Plus size={16} /> რეზერვუარის დამატება
                     </button>
                   </div>
+                ) : visibleReservoirs.length === 0 ? (
+                  <div className="terminal-map__message terminal-map__message--empty" role="status">
+                    ამ ნომრით რეზერვუარი ვერ მოიძებნა.
+                  </div>
                 ) : (
                   <div className="terminal-map">
                     <svg className="terminal-map__pipes" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
@@ -806,7 +838,7 @@ function App() {
                       <circle cx="820" cy="300" r="7" />
                     </svg>
                     <div className="terminal-map__grid">
-                      {reservoirs.map((reservoir) => {
+                      {visibleReservoirs.map((reservoir) => {
                         const percent = Math.round(
                           (reservoir.current_weight_kg / reservoir.capacity_kg) * 100,
                         )

@@ -56,3 +56,12 @@ export function normalizeReservoirRecords(reservoirs) {
   }
   return reservoirs.map(normalizeReservoirRecord)
 }
+
+export function filterReservoirsByNumber(reservoirs, query) {
+  const normalizedQuery = String(query ?? '').trim().toLocaleLowerCase('ka-GE')
+  if (!normalizedQuery) return reservoirs
+
+  return reservoirs.filter((reservoir) =>
+    reservoir.reservoir_number.toLocaleLowerCase('ka-GE').includes(normalizedQuery),
+  )
+}

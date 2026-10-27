@@ -1559,6 +1559,39 @@ td strong {
   box-shadow: 0 0 0 3px rgb(56 185 154 / 12%);
 }
 
+.reservoir-search {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px;
+  padding: 0 10px;
+  border: 1px solid #e4e9f0;
+  border-radius: 7px;
+  background: #fbfcfe;
+  color: #8a96a6;
+}
+
+.reservoir-search:focus-within {
+  border-color: #9eacec;
+  box-shadow: 0 0 0 3px rgb(66 99 235 / 8%);
+}
+
+.reservoir-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #334156;
+  font: inherit;
+  font-size: 10px;
+}
+
+.reservoir-search input::placeholder {
+  color: #9ba5b2;
+}
+
 .terminal-map {
   position: relative;
   min-height: 460px;

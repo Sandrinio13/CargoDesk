@@ -1,6 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeReservoirRecord, normalizeReservoirRecords } from '../src/reservoirs.js'
+import {
+  filterReservoirsByNumber,
+  normalizeReservoirRecord,
+  normalizeReservoirRecords,
+} from '../src/reservoirs.js'
 
 test('normalizes database reservoir values to finite numbers', () => {
   const [reservoir] = normalizeReservoirRecords([{
@@ -50,4 +54,17 @@ test('rejects incomplete or out-of-range reservoir records', () => {
   for (const reservoir of invalidRecords) {
     assert.throws(() => normalizeReservoirRecord(reservoir), /რეზერვუარის/)
   }
+})
+
+test('filters reservoirs by a trimmed, case-insensitive number query', () => {
+  const reservoirs = normalizeReservoirRecords([
+    { id: '1', reservoir_number: 'R-01', capacity_kg: 100, current_weight_kg: 0 },
+    { id: '2', reservoir_number: 'r-12', capacity_kg: 200, current_weight_kg: 0 },
+    { id: '3', reservoir_number: '12-A', capacity_kg: 300, current_weight_kg: 0 },
+  ])
+
+  assert.deepEqual(filterReservoirsByNumber(reservoirs, ' r-1 '), [reservoirs[1]])
+  assert.deepEqual(filterReservoirsByNumber(reservoirs, '12'), [reservoirs[1], reservoirs[2]])
+  assert.deepEqual(filterReservoirsByNumber(reservoirs, ''), reservoirs)
+  assert.deepEqual(filterReservoirsByNumber(reservoirs, 'missing'), [])
 })
