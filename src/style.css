@@ -368,6 +368,16 @@ button:disabled {
   background: #fff7f7;
 }
 
+.button--release {
+  background: #c7792b;
+  box-shadow: 0 2px 4px rgb(199 121 43 / 18%);
+  color: #fff;
+}
+
+.button--release:hover:not(:disabled) {
+  background: #ad641f;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

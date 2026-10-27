@@ -288,6 +288,8 @@ function App() {
     : null
   const formatAmount = (amount) =>
     amount.toLocaleString('ka-GE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const formatWeight = (amount) =>
+    amount.toLocaleString('ka-GE', { maximumFractionDigits: 3 })
   const formatCapacity = (amount) =>
     amount.toLocaleString('ka-GE', { maximumFractionDigits: 3 })
   const selectedReservoir = reservoirs.find(
@@ -746,7 +748,7 @@ function App() {
               </article>
               <article className="terminal-summary__item">
                 <span className="terminal-summary__icon terminal-summary__icon--blue"><Droplets size={17} /></span>
-                <div><span>მიმდინარე დატვირთვა</span><strong>{formatAmount(reservoirWeightTotal)} <small>კგ</small></strong></div>
+                <div><span>მიმდინარე დატვირთვა</span><strong>{formatWeight(reservoirWeightTotal)} <small>კგ</small></strong></div>
               </article>
             </section>
 
@@ -831,7 +833,7 @@ function App() {
                               <span className="reservoir-tank__top" />
                             </span>
                             <span className="reservoir-marker__capacity">
-                              {formatAmount(reservoir.current_weight_kg)} / {formatCapacity(reservoir.capacity_kg)} კგ
+                              {formatWeight(reservoir.current_weight_kg)} / {formatCapacity(reservoir.capacity_kg)} კგ
                             </span>
                           </button>
                         )
@@ -884,7 +886,7 @@ function App() {
                     </div>
                     <div className="reservoir-details__totals">
                       <span>დატვირთვა</span>
-                      <strong>{formatAmount(selectedReservoir.current_weight_kg)} <small>კგ</small></strong>
+                      <strong>{formatWeight(selectedReservoir.current_weight_kg)} <small>კგ</small></strong>
                     </div>
                     <div className="reservoir-details__totals">
                       <span>ტევადობა</span>
@@ -958,7 +960,7 @@ function App() {
                         </p>
                       )}
                       <button
-                        className="button button--outline reservoir-transaction-form__submit"
+                        className="button button--release reservoir-transaction-form__submit"
                         type="submit"
                         disabled={Boolean(reservoirMovementSaving) || reservoirDeleting || releaseWeightInvalid}
                       >
@@ -1319,7 +1321,7 @@ function App() {
             </p>
             <div className="reservoir-delete-modal__weight">
               მიმდინარე მარაგი
-              <strong>{formatAmount(selectedReservoir.current_weight_kg)} კგ</strong>
+              <strong>{formatWeight(selectedReservoir.current_weight_kg)} კგ</strong>
             </div>
             {reservoirDeleteError && (
               <div className="alert alert--error reservoir-delete-modal__error" role="alert">
