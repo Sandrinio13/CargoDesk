@@ -1515,19 +1515,20 @@ td strong {
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 14px;
   background: #fff;
-  box-shadow: 0 1px 2px rgb(20 32 50 / 2%);
+  box-shadow: 0 8px 26px rgb(30 45 65 / 5%);
 }
 
 .terminal-card__header {
   display: flex;
-  min-height: 77px;
+  min-height: 82px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 17px;
+  padding: 16px 19px;
   border-bottom: 1px solid #edf0f4;
+  background: linear-gradient(135deg, #fff 0%, #fbfcff 100%);
 }
 
 .terminal-card__header .eyebrow {
@@ -1546,6 +1547,10 @@ td strong {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid #e8edf2;
+  border-radius: 999px;
+  background: #fff;
   color: #748196;
   font-size: 10px;
   white-space: nowrap;
@@ -1561,20 +1566,22 @@ td strong {
 
 .reservoir-search {
   display: flex;
-  height: 36px;
+  height: 40px;
   align-items: center;
   gap: 8px;
-  margin: 12px 16px;
-  padding: 0 10px;
+  margin: 13px 17px;
+  padding: 0 12px;
   border: 1px solid #e4e9f0;
-  border-radius: 7px;
-  background: #fbfcfe;
+  border-radius: 10px;
+  background: #f8fafc;
   color: #8a96a6;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
 .reservoir-search:focus-within {
-  border-color: #9eacec;
-  box-shadow: 0 0 0 3px rgb(66 99 235 / 8%);
+  border-color: #8095f0;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgb(66 99 235 / 10%);
 }
 
 .reservoir-search input {
@@ -1594,15 +1601,80 @@ td strong {
 
 .terminal-map {
   position: relative;
-  min-height: 460px;
+  min-height: 490px;
   overflow: hidden;
-  padding: 30px 24px 44px;
-  background-color: #edf2f6;
+  padding: 56px 27px 48px;
+  isolation: isolate;
+  background-color: #182b2e;
   background-image:
-    linear-gradient(rgb(255 255 255 / 45%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 45%) 1px, transparent 1px),
-    radial-gradient(ellipse at 50% 50%, #f8fafb 0, #e8eef3 76%);
-  background-size: 28px 28px, 28px 28px, auto;
+    linear-gradient(35deg, transparent 48%, rgb(180 199 176 / 8%) 49%, rgb(180 199 176 / 8%) 51%, transparent 52%),
+    linear-gradient(145deg, rgb(132 154 126 / 9%) 0 18%, transparent 18% 32%, rgb(132 154 126 / 7%) 32% 51%, transparent 51%),
+    radial-gradient(ellipse at 50% 45%, rgb(64 94 76 / 46%) 0, transparent 72%),
+    linear-gradient(145deg, #273c3a, #17282c 82%);
+  background-size: 116px 116px, 210px 165px, auto, auto;
+}
+
+.terminal-map::before,
+.terminal-map::after {
+  position: absolute;
+  z-index: 0;
+  border: 1px solid rgb(210 222 197 / 19%);
+  border-radius: 12px;
+  content: '';
+  pointer-events: none;
+}
+
+.terminal-map::before {
+  inset: 25px 18px 34px;
+}
+
+.terminal-map::after {
+  inset: 32px 25px 41px;
+  border-color: rgb(210 222 197 / 9%);
+}
+
+.terminal-map__site-label {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 18px;
+  display: grid;
+  gap: 2px;
+  color: #e5eee4;
+  text-shadow: 0 1px 5px rgb(0 0 0 / 35%);
+}
+
+.terminal-map__site-name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.045em;
+}
+
+.terminal-map__site-type {
+  color: #a9bcae;
+  font-size: 8px;
+}
+
+.terminal-map__north {
+  position: absolute;
+  z-index: 2;
+  top: 15px;
+  right: 19px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  color: #dce8df;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.terminal-map__north i {
+  width: 0;
+  height: 0;
+  border-right: 5px solid transparent;
+  border-bottom: 12px solid #85c9c0;
+  border-left: 5px solid transparent;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 30%));
 }
 
 .terminal-map__pipes {
@@ -1610,69 +1682,121 @@ td strong {
   inset: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.72;
+  overflow: visible;
+  opacity: 0.82;
+  pointer-events: none;
 }
 
-.terminal-map__pipes path {
+.terminal-map__scene {
+  position: relative;
+  z-index: 1;
+  transform: scale(var(--map-scale));
+  transform-origin: center center;
+  transition: transform 180ms ease;
+}
+
+.terminal-map__pipes .terminal-map__road {
   fill: none;
-  stroke: #8ca5b5;
-  stroke-width: 7;
-  stroke-linecap: round;
+  stroke: #b7b9a2;
+  stroke-width: 24;
   stroke-linejoin: round;
-  opacity: 0.34;
+  opacity: 0.28;
 }
 
-.terminal-map__pipes path:nth-of-type(2) {
-  stroke: #5da8b3;
-  stroke-width: 4;
-  opacity: 0.45;
-}
-
-.terminal-map__pipes path:nth-of-type(3),
-.terminal-map__pipes path:nth-of-type(4) {
-  stroke: #b19d75;
-  stroke-width: 3;
+.terminal-map__pipes .terminal-map__road-line {
+  fill: none;
+  stroke: #e1d9b8;
+  stroke-width: 1.5;
+  stroke-dasharray: 9 10;
   opacity: 0.35;
 }
 
-.terminal-map__pipes circle {
-  fill: #eef4f7;
-  stroke: #7795a7;
+.terminal-map__pipes .terminal-map__pipe {
+  fill: none;
+  stroke: #d0ad6b;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.28;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 30%));
+}
+
+.terminal-map__pipes .terminal-map__pipe--flow {
+  stroke: #6ec7bd;
   stroke-width: 4;
+  stroke-dasharray: 9 13;
+  opacity: 0.72;
+  animation: map-pipe-flow 24s linear infinite;
+}
+
+.terminal-map__pipes .terminal-map__pipe--branch {
+  stroke: #c9d4bf;
+  stroke-width: 3;
+  stroke-dasharray: 3 11;
+  opacity: 0.42;
+}
+
+.terminal-map__pipes circle {
+  fill: #293d39;
+  stroke: #9bd1c4;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 5px rgb(135 211 192 / 55%));
+}
+
+@keyframes map-pipe-flow {
+  to {
+    stroke-dashoffset: -176;
+  }
 }
 
 .terminal-map__grid {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(125px, 165px));
-  align-items: end;
-  gap: 22px 15px;
+  grid-template-columns: repeat(auto-fill, minmax(145px, 175px));
+  align-items: center;
+  gap: 17px 18px;
 }
 
 .reservoir-marker {
   display: grid;
   min-width: 0;
+  min-height: 192px;
   justify-items: center;
-  gap: 8px;
-  padding: 11px 8px 10px;
-  border: 1px solid rgb(187 199 210 / 80%);
-  border-radius: 9px;
-  background: rgb(255 255 255 / 88%);
-  box-shadow: 0 4px 12px rgb(35 54 72 / 9%);
-  color: #344255;
-  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  align-content: center;
+  gap: 9px;
+  padding: 10px 8px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: rgb(19 34 31 / 34%);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 12%);
+  color: #f0f3e9;
+  backdrop-filter: blur(3px);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, background 180ms ease;
 }
 
 .reservoir-marker:hover {
-  transform: translateY(-2px);
-  border-color: #8197ea;
-  box-shadow: 0 7px 16px rgb(35 54 72 / 13%);
+  z-index: 2;
+  transform: translateY(-4px) scale(1.025);
+  border-color: rgb(141 213 199 / 70%);
+  background: rgb(20 43 39 / 86%);
+  box-shadow: 0 12px 24px rgb(0 0 0 / 25%), 0 0 0 2px rgb(120 211 190 / 16%);
+}
+
+.reservoir-marker:focus-visible {
+  z-index: 3;
+  outline: 3px solid #9bd9c7;
+  outline-offset: 3px;
 }
 
 .reservoir-marker--selected {
-  border-color: #4263eb;
-  box-shadow: 0 0 0 2px rgb(66 99 235 / 14%), 0 5px 13px rgb(35 54 72 / 10%);
+  border-color: rgb(129 222 197 / 80%);
+  background: rgb(24 53 46 / 89%);
+  box-shadow: 0 0 0 2px rgb(128 222 197 / 24%), 0 10px 22px rgb(0 0 0 / 28%);
+}
+
+.reservoir-marker--selected .reservoir-marker__labels > span {
+  color: #91e0c8;
 }
 
 .reservoir-marker__labels {
@@ -1681,10 +1805,13 @@ td strong {
   align-items: center;
   justify-content: space-between;
   gap: 4px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgb(218 233 218 / 17%);
 }
 
 .reservoir-marker__labels strong {
   overflow: hidden;
+  color: #f1f3ea;
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1692,90 +1819,124 @@ td strong {
 
 .reservoir-marker__labels > span {
   flex: 0 0 auto;
-  color: #5370db;
+  color: #dbd3ad;
   font-size: 10px;
   font-weight: 700;
 }
 
 .reservoir-tank {
-  position: relative;
   display: block;
-  width: 68px;
-  height: 121px;
-  overflow: hidden;
-  border: 2px solid #8296a5;
-  border-radius: 42% 42% 13% 13% / 10% 10% 7% 7%;
-  background:
-    linear-gradient(90deg, rgb(107 127 141 / 23%), transparent 20%, rgb(255 255 255 / 55%) 49%, transparent 76%, rgb(107 127 141 / 19%)),
-    #dbe5e9;
-  box-shadow: inset 0 0 0 3px rgb(255 255 255 / 46%), 0 5px 9px rgb(40 58 71 / 15%);
+  width: 132px;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 8px 7px rgb(0 0 0 / 26%));
+  transform: perspective(500px) rotateX(-2deg);
+  transform-origin: center bottom;
+  transition: filter 200ms ease, transform 200ms ease;
 }
 
-.reservoir-tank::after {
-  position: absolute;
-  right: 6px;
-  bottom: 8px;
-  left: 6px;
-  height: 2px;
-  background: rgb(91 111 126 / 27%);
-  content: '';
+.reservoir-marker:hover .reservoir-tank,
+.reservoir-marker:focus-visible .reservoir-tank {
+  filter: drop-shadow(0 12px 9px rgb(0 0 0 / 34%)) brightness(1.08);
+  transform: perspective(500px) rotateX(-2deg) translateY(-3px) scale(1.035);
+}
+
+.reservoir-marker--selected .reservoir-tank {
+  filter: drop-shadow(0 10px 8px rgb(0 0 0 / 32%)) brightness(1.06);
 }
 
 .reservoir-tank__liquid {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background: linear-gradient(90deg, #399da6, #54c2c0 52%, #399da6);
-  transition: height 220ms ease;
+  transform-box: view-box;
+  transform-origin: 80px 143px;
+  animation: tank-fill-rise 800ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
 }
 
-.reservoir-tank__liquid::before {
-  position: absolute;
-  top: -4px;
-  right: -2px;
-  left: -2px;
-  height: 8px;
-  border: 1px solid rgb(35 133 145 / 65%);
-  border-radius: 50%;
-  background: #65cfcb;
-  content: '';
-}
-
-.reservoir-tank__top {
-  position: absolute;
-  z-index: 1;
-  top: -3px;
-  right: -2px;
-  left: -2px;
-  height: 15px;
-  border: 2px solid #8296a5;
-  border-radius: 50%;
-  background: linear-gradient(#f4f7f8, #cbd7dc);
+@keyframes tank-fill-rise {
+  from {
+    transform: scaleY(0);
+  }
 }
 
 .reservoir-marker__capacity {
-  color: #788697;
+  color: #becbbd;
   font-size: 9px;
+  line-height: 1.5;
   text-align: center;
 }
 
 .terminal-map__legend {
   position: absolute;
-  right: 15px;
-  bottom: 12px;
+  right: 17px;
+  bottom: 13px;
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #778697;
+  padding: 7px 10px;
+  border: 1px solid rgb(190 219 196 / 18%);
+  border-radius: 999px;
+  background: rgb(12 25 21 / 74%);
+  color: #c8d6c9;
   font-size: 9px;
+  backdrop-filter: blur(8px);
 }
 
 .terminal-map__legend > span {
   width: 16px;
   height: 3px;
   border-radius: 2px;
-  background: #5da8b3;
+  background: #67c8b1;
+  box-shadow: 0 0 8px rgb(103 200 177 / 65%);
+}
+
+.terminal-map__zoom {
+  position: absolute;
+  z-index: 3;
+  bottom: 12px;
+  left: 15px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgb(190 219 196 / 18%);
+  border-radius: 9px;
+  background: rgb(12 25 21 / 80%);
+  color: #d7e2d6;
+  backdrop-filter: blur(8px);
+}
+
+.terminal-map__zoom button {
+  display: grid;
+  min-width: 29px;
+  height: 28px;
+  padding: 0 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 9px;
+  font-weight: 650;
+  place-items: center;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.terminal-map__zoom button:hover:not(:disabled) {
+  background: rgb(103 200 177 / 15%);
+  color: #9be0ca;
+}
+
+.terminal-map__zoom button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid #9bd9c7;
+  outline-offset: -2px;
+}
+
+.terminal-map__zoom button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.terminal-map__zoom button + button {
+  border-left: 1px solid rgb(190 219 196 / 15%);
 }
 
 .terminal-map__message {
@@ -2269,7 +2430,11 @@ td strong {
 
   .terminal-map {
     min-height: 400px;
-    padding: 20px 11px 42px;
+    padding: 52px 11px 42px;
+  }
+
+  .terminal-map__scene {
+    transform-origin: center top;
   }
 
   .terminal-map__grid {
@@ -2278,12 +2443,9 @@ td strong {
   }
 
   .reservoir-marker {
+    min-height: 172px;
+    gap: 7px;
     padding: 9px 6px;
-  }
-
-  .reservoir-tank {
-    width: 58px;
-    height: 108px;
   }
 
   .stat-card {
@@ -2351,5 +2513,25 @@ td strong {
 
   .review-modal__footer .button {
     flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-map__pipes .terminal-map__pipe--flow {
+    animation: none;
+  }
+
+  .reservoir-tank__liquid {
+    animation: none;
+  }
+
+  .terminal-map__scene {
+    transition: none;
+  }
+
+  .reservoir-marker,
+  .reservoir-tank,
+  .reservoir-search {
+    transition: none;
   }
 }

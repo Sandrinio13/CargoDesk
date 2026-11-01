@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -16,6 +16,7 @@ import {
   Layers3,
   LayoutDashboard,
   LoaderCircle,
+  Minus,
   Plus,
   Search,
   ShieldAlert,
@@ -31,6 +32,67 @@ import {
   normalizeReservoirRecords,
 } from './reservoirs.js'
 const sanctionsPageSize = 25
+
+function ReservoirTank({ percent }) {
+  const clipId = `reservoir-shell-${useId().replaceAll(':', '')}`
+  const fillPercent = Math.min(100, Math.max(0, percent))
+  const liquidTop = 132 - fillPercent * 0.94
+
+  return (
+    <svg
+      className="reservoir-tank"
+      viewBox="0 0 160 160"
+      role="img"
+      aria-label={`რეზერვუარის შევსება ${fillPercent}%`}
+    >
+      <defs>
+        <linearGradient id={`${clipId}-steel`} x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stopColor="#283a3c" />
+          <stop offset=".13" stopColor="#899b98" />
+          <stop offset=".31" stopColor="#526665" />
+          <stop offset=".56" stopColor="#b0bab0" />
+          <stop offset=".73" stopColor="#637574" />
+          <stop offset=".91" stopColor="#87948d" />
+          <stop offset="1" stopColor="#344747" />
+        </linearGradient>
+        <linearGradient id={`${clipId}-liquid`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#8bd3b2" stopOpacity=".95" />
+          <stop offset=".14" stopColor="#378f78" />
+          <stop offset="1" stopColor="#174b46" />
+        </linearGradient>
+        <linearGradient id={`${clipId}-lid`} x1="0" x2="0.9" y1="0" y2="1">
+          <stop offset="0" stopColor="#d2d7c8" />
+          <stop offset=".45" stopColor="#647775" />
+          <stop offset="1" stopColor="#283c3e" />
+        </linearGradient>
+        <clipPath id={clipId}>
+          <path d="M32 38 C32 30 53 24 80 24 S128 30 128 38 V128 C128 137 107 143 80 143 S32 137 32 128 Z" />
+        </clipPath>
+      </defs>
+      <ellipse cx="80" cy="147" rx="57" ry="8" fill="#061411" opacity=".38" />
+      <path d="M43 126 36 148h11l8-18m52-4 7 22h-11l-8-18" fill="#435653" stroke="#aab4a6" strokeWidth="3" />
+      <path d="M32 38 C32 30 53 24 80 24 S128 30 128 38 V128 C128 137 107 143 80 143 S32 137 32 128 Z" fill={`url(#${clipId}-steel)`} stroke="#c3cabc" strokeWidth="2" />
+      {fillPercent > 0 && (
+        <g className="reservoir-tank__liquid" clipPath={`url(#${clipId})`}>
+          <path d={`M31 ${liquidTop} Q80 ${liquidTop - 15} 129 ${liquidTop} V145 H31Z`} fill={`url(#${clipId}-liquid)`} />
+          <ellipse cx="80" cy={liquidTop} rx="48" ry="12" fill="#74c9a7" opacity=".88" />
+          <ellipse cx="80" cy={liquidTop + 2} rx="37" ry="6" fill="#b3e3c3" opacity=".27" />
+        </g>
+      )}
+      <path d="M35 55h90M34 59h92M34 111h92M35 115h90" fill="none" stroke="#d0d5c7" strokeOpacity=".48" strokeWidth="2" />
+      <path d="M44 44v78m72-78v78" fill="none" stroke="#263b3c" strokeOpacity=".5" strokeWidth="3" />
+      <path d="M38 43v77m84-77v77" fill="none" stroke="#e1e2d5" strokeOpacity=".34" strokeWidth="1.5" />
+      <path d="M32 38 C32 30 53 24 80 24 S128 30 128 38 V128 C128 137 107 143 80 143 S32 137 32 128 Z" fill="none" stroke="#d1d6c9" strokeWidth="2" />
+      <ellipse cx="80" cy="38" rx="48" ry="14" fill={`url(#${clipId}-lid)`} stroke="#d0d5c8" strokeWidth="2" />
+      <ellipse cx="80" cy="38" rx="37" ry="8" fill="#71817b" stroke="#c1c9ba" strokeWidth="1" />
+      <path d="M69 38a11 4 0 0 1 22 0v2a11 4 0 0 1-22 0Z" fill="#374b4a" stroke="#d0d5c8" strokeWidth="2" />
+      <path d="M69 40v3m22-3v3" stroke="#cbd2c5" strokeWidth="2" />
+      <path d="M128 48h8v76h-8m8-64h5m-5 19h5m-5 19h5m-5 19h5" fill="none" stroke="#d0d5c8" strokeLinecap="round" strokeWidth="3" />
+      <circle cx="136" cy="46" r="3" fill="#d0d5c8" />
+      <path d="M32 127 C32 135 53 143 80 143 S128 135 128 127" fill="none" stroke="#253b3a" strokeWidth="3" />
+    </svg>
+  )
+}
 
 const emptyDeclaration = {
   declarationNumber: '',
@@ -91,6 +153,7 @@ function App() {
   const [reservoirsLoaded, setReservoirsLoaded] = useState(false)
   const [reservoirsError, setReservoirsError] = useState('')
   const [reservoirSearch, setReservoirSearch] = useState('')
+  const [reservoirMapZoom, setReservoirMapZoom] = useState(1)
   const [reservoirModalOpen, setReservoirModalOpen] = useState(false)
   const [reservoirNumber, setReservoirNumber] = useState('')
   const [reservoirCapacity, setReservoirCapacity] = useState('')
@@ -827,49 +890,80 @@ function App() {
                   </div>
                 ) : (
                   <div className="terminal-map">
-                    <svg className="terminal-map__pipes" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
-                      <path d="M0 278H150V126H390V365H650V175H1000" />
-                      <path d="M0 430H270V210H530V470H820V300H1000" />
-                      <path d="M0 105H90V250H310V70H720V390H1000" />
-                      <path d="M148 276H270M390 126H530M650 175H820" />
-                      <circle cx="150" cy="278" r="7" />
-                      <circle cx="390" cy="365" r="7" />
-                      <circle cx="650" cy="175" r="7" />
-                      <circle cx="820" cy="300" r="7" />
-                    </svg>
-                    <div className="terminal-map__grid">
-                      {visibleReservoirs.map((reservoir) => {
-                        const percent = Math.round(
-                          (reservoir.current_weight_kg / reservoir.capacity_kg) * 100,
-                        )
-                        const isSelected = String(reservoir.id) === String(selectedReservoirId)
-                        return (
-                          <button
-                            className={`reservoir-marker${isSelected ? ' reservoir-marker--selected' : ''}`}
-                            key={reservoir.id}
-                            type="button"
-                            aria-pressed={isSelected}
-                            aria-label={`${reservoir.reservoir_number}, ${percent}% დატვირთული`}
-                            disabled={reservoirDeleting}
-                            onClick={() => selectReservoir(reservoir)}
-                          >
-                            <span className="reservoir-marker__labels">
-                              <strong>{reservoir.reservoir_number}</strong>
-                              <span>{percent}%</span>
-                            </span>
-                            <span className="reservoir-tank" aria-hidden="true">
-                              <span
-                                className="reservoir-tank__liquid"
-                                style={{ height: `${percent}%` }}
-                              />
-                              <span className="reservoir-tank__top" />
-                            </span>
-                            <span className="reservoir-marker__capacity">
-                              {formatWeight(reservoir.current_weight_kg)} / {formatCapacity(reservoir.capacity_kg)} კგ
-                            </span>
-                          </button>
-                        )
-                      })}
+                    <div className="terminal-map__site-label" aria-hidden="true">
+                      <span className="terminal-map__site-name">სატერმინალო ზონა</span>
+                      <span className="terminal-map__site-type">ობიექტის ზედხედი</span>
+                    </div>
+                    <div className="terminal-map__north" aria-hidden="true"><span>N</span><i /></div>
+                    <div
+                      className="terminal-map__scene"
+                      style={{ '--map-scale': reservoirMapZoom }}
+                    >
+                      <svg className="terminal-map__pipes" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
+                        <path className="terminal-map__road" d="M34 32H966V528H34Z" />
+                        <path className="terminal-map__road-line" d="M52 50H948V510H52Z" />
+                        <path className="terminal-map__pipe" d="M0 278H150V126H390V365H650V175H1000" />
+                        <path className="terminal-map__pipe terminal-map__pipe--flow" d="M0 430H270V210H530V470H820V300H1000" />
+                        <path className="terminal-map__pipe terminal-map__pipe--branch" d="M0 105H90V250H310V70H720V390H1000" />
+                        <path className="terminal-map__pipe terminal-map__pipe--branch" d="M148 276H270M390 126H530M650 175H820" />
+                        <circle cx="150" cy="278" r="7" />
+                        <circle cx="390" cy="365" r="7" />
+                        <circle cx="650" cy="175" r="7" />
+                        <circle cx="820" cy="300" r="7" />
+                      </svg>
+                      <div className="terminal-map__grid">
+                        {visibleReservoirs.map((reservoir) => {
+                          const percent = Math.round(
+                            (reservoir.current_weight_kg / reservoir.capacity_kg) * 100,
+                          )
+                          const isSelected = String(reservoir.id) === String(selectedReservoirId)
+                          return (
+                            <button
+                              className={`reservoir-marker${isSelected ? ' reservoir-marker--selected' : ''}`}
+                              key={reservoir.id}
+                              type="button"
+                              aria-pressed={isSelected}
+                              aria-label={`${reservoir.reservoir_number}, ${percent}% დატვირთული, ${formatWeight(reservoir.current_weight_kg)} კგ`}
+                              disabled={reservoirDeleting}
+                              onClick={() => selectReservoir(reservoir)}
+                            >
+                              <span className="reservoir-marker__labels">
+                                <strong>{reservoir.reservoir_number}</strong>
+                                <span>{percent}%</span>
+                              </span>
+                              <ReservoirTank percent={percent} />
+                              <span className="reservoir-marker__capacity">
+                                {formatWeight(reservoir.current_weight_kg)} / {formatCapacity(reservoir.capacity_kg)} კგ
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div className="terminal-map__zoom" role="group" aria-label="რუკის მასშტაბი">
+                      <button
+                        type="button"
+                        aria-label="რუკის მასშტაბის შემცირება"
+                        disabled={reservoirMapZoom <= 0.8}
+                        onClick={() => setReservoirMapZoom((zoom) => Math.max(0.8, Number((zoom - 0.1).toFixed(1))))}
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="რუკის მასშტაბის აღდგენა"
+                        onClick={() => setReservoirMapZoom(1)}
+                      >
+                        {Math.round(reservoirMapZoom * 100)}%
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="რუკის მასშტაბის გაზრდა"
+                        disabled={reservoirMapZoom >= 1.4}
+                        onClick={() => setReservoirMapZoom((zoom) => Math.min(1.4, Number((zoom + 0.1).toFixed(1))))}
+                      >
+                        <Plus size={13} />
+                      </button>
                     </div>
                     <div className="terminal-map__legend"><span /> საწვავის მილსადენი</div>
                   </div>
