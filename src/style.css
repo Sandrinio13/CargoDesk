@@ -1615,6 +1615,16 @@ td strong {
   background-size: 116px 116px, 210px 165px, auto, auto;
 }
 
+.terminal-map--draggable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.terminal-map--dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .terminal-map::before,
 .terminal-map::after {
   position: absolute;
@@ -1691,9 +1701,13 @@ td strong {
 .terminal-map__scene {
   position: relative;
   z-index: 1;
-  transform: scale(var(--map-scale));
+  transform: translate(var(--map-x), var(--map-y)) scale(var(--map-scale));
   transform-origin: center center;
   transition: transform 180ms ease;
+}
+
+.terminal-map--dragging .terminal-map__scene {
+  transition: none;
 }
 
 .terminal-map__pipes .terminal-map__road {

@@ -154,6 +154,8 @@ function App() {
   const [reservoirsError, setReservoirsError] = useState('')
   const [reservoirSearch, setReservoirSearch] = useState('')
   const [reservoirMapZoom, setReservoirMapZoom] = useState(1)
+  const [reservoirMapPosition, setReservoirMapPosition] = useState({ x: 0, y: 0 })
+  const [reservoirMapDragging, setReservoirMapDragging] = useState(false)
   const [reservoirModalOpen, setReservoirModalOpen] = useState(false)
   const [reservoirNumber, setReservoirNumber] = useState('')
   const [reservoirCapacity, setReservoirCapacity] = useState('')
@@ -169,6 +171,7 @@ function App() {
   const [receiveWeightError, setReceiveWeightError] = useState('')
   const [releaseWeightError, setReleaseWeightError] = useState('')
   const fileInput = useRef(null)
+  const reservoirMapDrag = useRef(null)
 
   async function loadReservoirs() {
     setReservoirsLoading(true)
@@ -399,6 +402,39 @@ function App() {
     setReceiveWeightError('')
     setReleaseWeightError('')
     setReservoirDeleteError('')
+  }
+
+  function startReservoirMapDrag(event) {
+    if (reservoirMapZoom <= 1 || event.target.closest('button')) return
+
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setReservoirMapDragging(true)
+    reservoirMapDrag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startPosition: reservoirMapPosition,
+    }
+  }
+
+  function moveReservoirMap(event) {
+    const drag = reservoirMapDrag.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    setReservoirMapPosition({
+      x: drag.startPosition.x + event.clientX - drag.startX,
+      y: drag.startPosition.y + event.clientY - drag.startY,
+    })
+  }
+
+  function stopReservoirMapDrag(event) {
+    if (reservoirMapDrag.current?.pointerId !== event.pointerId) return
+    reservoirMapDrag.current = null
+    setReservoirMapDragging(false)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
   }
 
   function searchReservoirs(value) {
@@ -889,7 +925,13 @@ function App() {
                     ამ ნომრით რეზერვუარი ვერ მოიძებნა.
                   </div>
                 ) : (
-                  <div className="terminal-map">
+                  <div
+                    className={`terminal-map${reservoirMapZoom > 1 ? ' terminal-map--draggable' : ''}${reservoirMapDragging ? ' terminal-map--dragging' : ''}`}
+                    onPointerDown={startReservoirMapDrag}
+                    onPointerMove={moveReservoirMap}
+                    onPointerUp={stopReservoirMapDrag}
+                    onPointerCancel={stopReservoirMapDrag}
+                  >
                     <div className="terminal-map__site-label" aria-hidden="true">
                       <span className="terminal-map__site-name">სატერმინალო ზონა</span>
                       <span className="terminal-map__site-type">ობიექტის ზედხედი</span>
@@ -897,7 +939,11 @@ function App() {
                     <div className="terminal-map__north" aria-hidden="true"><span>N</span><i /></div>
                     <div
                       className="terminal-map__scene"
-                      style={{ '--map-scale': reservoirMapZoom }}
+                      style={{
+                        '--map-scale': reservoirMapZoom,
+                        '--map-x': `${reservoirMapPosition.x}px`,
+                        '--map-y': `${reservoirMapPosition.y}px`,
+                      }}
                     >
                       <svg className="terminal-map__pipes" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
                         <path className="terminal-map__road" d="M34 32H966V528H34Z" />
@@ -945,14 +991,21 @@ function App() {
                         type="button"
                         aria-label="რუკის მასშტაბის შემცირება"
                         disabled={reservoirMapZoom <= 0.8}
-                        onClick={() => setReservoirMapZoom((zoom) => Math.max(0.8, Number((zoom - 0.1).toFixed(1))))}
+                        onClick={() => {
+                          const nextZoom = Math.max(0.8, Number((reservoirMapZoom - 0.1).toFixed(1)))
+                          setReservoirMapZoom(nextZoom)
+                          if (nextZoom <= 1) setReservoirMapPosition({ x: 0, y: 0 })
+                        }}
                       >
                         <Minus size={13} />
                       </button>
                       <button
                         type="button"
                         aria-label="რუკის მასშტაბის აღდგენა"
-                        onClick={() => setReservoirMapZoom(1)}
+                        onClick={() => {
+                          setReservoirMapZoom(1)
+                          setReservoirMapPosition({ x: 0, y: 0 })
+                        }}
                       >
                         {Math.round(reservoirMapZoom * 100)}%
                       </button>
